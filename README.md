@@ -1,4 +1,3 @@
-readme_content = """# Real-Time Stroke Risk Prediction System
 
 ## 🏥 Project Overview
 This machine learning system predicts stroke risk by combining patient health data with real-time environmental factors from Southeast Asian cities. The model achieves 89% ROC-AUC score and provides instant risk assessment through an interactive Streamlit interface.
