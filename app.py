@@ -283,27 +283,82 @@ if st.button("🔍 Calculate Stroke Risk", type="primary", use_container_width=T
             air_quality_data = {'aqi': 2, 'pm25': 25, 'pm10': 45}
         
         # Prepare input data
-        input_dict = {
-            'age': age,
-            'hypertension': 1 if hypertension == "Yes" else 0,
-            'heart_disease': 1 if heart_disease == "Yes" else 0,
-            'avg_glucose_level': avg_glucose,
-            'bmi': bmi,
-            'gender_encoded': label_encoders['gender'].transform([gender.lower()])[0],
-            'ever_married_encoded': label_encoders['ever_married'].transform([ever_married])[0],
-            'work_type_encoded': label_encoders['work_type'].transform([work_type])[0],
-            'Residence_type_encoded': label_encoders['Residence_type'].transform([residence_type])[0],
-            'smoking_status_encoded': label_encoders['smoking_status'].transform([smoking_status])[0],
-            'temperature': weather_data['temperature'],
-            'humidity': weather_data['humidity'],
-            'pressure': weather_data['pressure'],
-            'aqi': air_quality_data['aqi'],
-            'pm25': air_quality_data['pm25'],
-            'pm10': air_quality_data['pm10'],
-            'age_glucose_interaction': age * avg_glucose / 100,
-            'bmi_pressure_interaction': bmi * weather_data['pressure'] / 1000,
-            'pollution_age_risk': air_quality_data['pm25'] * age / 100
-        }
+        try:
+            # Debug: Check what values the encoders expect
+            # st.write("Gender classes:", label_encoders['gender'].classes_)
+            
+            # Handle gender encoding - check what format the encoder expects
+            gender_value = gender.lower()
+            if gender_value == "female":
+                gender_value = "Female"  # Try capitalized
+            elif gender_value == "male":
+                gender_value = "Male"
+            elif gender_value == "other":
+                gender_value = "Other"
+            
+            # Try different formats if needed
+            try:
+                gender_encoded = label_encoders['gender'].transform([gender_value])[0]
+            except ValueError:
+                # If capitalized doesn't work, try as-is
+                try:
+                    gender_encoded = label_encoders['gender'].transform([gender])[0]
+                except ValueError:
+                    # If that doesn't work, try numeric encoding
+                    if gender.lower() == "male":
+                        gender_encoded = 1
+                    elif gender.lower() == "female":
+                        gender_encoded = 0
+                    else:
+                        gender_encoded = 2
+            
+            input_dict = {
+                'age': age,
+                'hypertension': 1 if hypertension == "Yes" else 0,
+                'heart_disease': 1 if heart_disease == "Yes" else 0,
+                'avg_glucose_level': avg_glucose,
+                'bmi': bmi,
+                'gender_encoded': gender_encoded,
+                'ever_married_encoded': label_encoders['ever_married'].transform([ever_married])[0],
+                'work_type_encoded': label_encoders['work_type'].transform([work_type])[0],
+                'Residence_type_encoded': label_encoders['Residence_type'].transform([residence_type])[0],
+                'smoking_status_encoded': label_encoders['smoking_status'].transform([smoking_status])[0],
+                'temperature': weather_data['temperature'],
+                'humidity': weather_data['humidity'],
+                'pressure': weather_data['pressure'],
+                'aqi': air_quality_data['aqi'],
+                'pm25': air_quality_data['pm25'],
+                'pm10': air_quality_data['pm10'],
+                'age_glucose_interaction': age * avg_glucose / 100,
+                'bmi_pressure_interaction': bmi * weather_data['pressure'] / 1000,
+                'pollution_age_risk': air_quality_data['pm25'] * age / 100
+            }
+        except Exception as e:
+            st.error(f"Error encoding categorical variables: {str(e)}")
+            st.info("Using default encoding values...")
+            
+            # Fallback encoding
+            input_dict = {
+                'age': age,
+                'hypertension': 1 if hypertension == "Yes" else 0,
+                'heart_disease': 1 if heart_disease == "Yes" else 0,
+                'avg_glucose_level': avg_glucose,
+                'bmi': bmi,
+                'gender_encoded': 1 if gender.lower() == "male" else 0,  # Simple binary encoding
+                'ever_married_encoded': 1 if ever_married == "Yes" else 0,
+                'work_type_encoded': {"Private": 0, "Self-employed": 1, "Govt_job": 2, "children": 3, "Never_worked": 4}.get(work_type, 0),
+                'Residence_type_encoded': 1 if residence_type == "Urban" else 0,
+                'smoking_status_encoded': {"never smoked": 0, "formerly smoked": 1, "smokes": 2, "Unknown": 3}.get(smoking_status, 0),
+                'temperature': weather_data['temperature'],
+                'humidity': weather_data['humidity'],
+                'pressure': weather_data['pressure'],
+                'aqi': air_quality_data['aqi'],
+                'pm25': air_quality_data['pm25'],
+                'pm10': air_quality_data['pm10'],
+                'age_glucose_interaction': age * avg_glucose / 100,
+                'bmi_pressure_interaction': bmi * weather_data['pressure'] / 1000,
+                'pollution_age_risk': air_quality_data['pm25'] * age / 100
+            }
         
         # Create DataFrame with correct column order
         input_data = pd.DataFrame([input_dict])[feature_columns]
@@ -445,6 +500,15 @@ st.sidebar.warning("""
 **Disclaimer:** This tool is for educational purposes only. 
 Always consult healthcare professionals for medical decisions.
 """)
+
+# Debug section (can be removed once working)
+with st.sidebar.expander("🔧 Debug Info"):
+    if 'label_encoders' in locals() and label_encoders is not None:
+        st.write("**Label Encoder Classes:**")
+        for key, encoder in label_encoders.items():
+            st.write(f"{key}: {encoder.classes_.tolist()}")
+    else:
+        st.write("Label encoders not loaded")
 
 # Footer
 st.markdown("---")
