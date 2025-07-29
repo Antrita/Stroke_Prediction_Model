@@ -21,12 +21,12 @@ OPENWEATHER_API_KEY = "430a36a7b5ba99415eda834a6a321d7b"
 
 # Google Drive model links (replace these with your actual Google Drive links)
 GDRIVE_MODELS = {
-    'stroke_prediction_model.pkl': 'https://drive.google.com/file/d/1fdYFiyXUmeIr4FDq6n2IzLKkjz8Byt48/view?usp=sharing',
-    'scaler.pkl': 'https://drive.google.com/file/d/1NBQ72P60FNMV63w1NIet7G8oTyhGct8p/view?usp=sharing', 
-    'label_encoders.pkl': 'https://drive.google.com/file/d/1sJ5acYV1CJ-WhjolQNhI2KafXjeLGb8t/view?usp=sharing',
-    'feature_columns.pkl': 'https://drive.google.com/file/d/1SrJPpSl0txy1zVIasN78c5G9Ghf8_ykL/view?usp=sharing',
-    'random_forest_model.pkl': 'https://drive.google.com/file/d/1YrqmhtFfD6MRYDtROomOQTxQAV_8cRUA/view?usp=sharing',
-    'xgboost_model.pkl': 'https://drive.google.com/file/d/1mA-1s23PumxSy2QQ7BkNoMUrAq6wKQQc/view?usp=sharing'
+    'stroke_prediction_model.pkl': 'YOUR_STROKE_MODEL_GDRIVE_LINK',
+    'scaler.pkl': 'YOUR_SCALER_GDRIVE_LINK', 
+    'label_encoders.pkl': 'YOUR_LABEL_ENCODERS_GDRIVE_LINK',
+    'feature_columns.pkl': 'YOUR_FEATURE_COLUMNS_GDRIVE_LINK',
+    'random_forest_model.pkl': 'YOUR_RF_MODEL_GDRIVE_LINK',
+    'xgboost_model.pkl': 'YOUR_XGB_MODEL_GDRIVE_LINK'
 }
 
 # Function to download model from Google Drive
@@ -123,11 +123,34 @@ def get_air_quality_data(lat, lon):
         response = requests.get(base_url, params=params, timeout=5)
         data = response.json()
         
-        if response.status_code == 200:
+        if response.status_code == 200 and 'hourly' in data:
             hourly_data = data['hourly']
-            latest_index = -1
             
-            pm25 = hourly_data['pm2_5'][latest_index]
+            # Get the latest valid data point
+            pm25_values = hourly_data.get('pm2_5', [])
+            pm10_values = hourly_data.get('pm10', [])
+            
+            # Find the last non-null PM2.5 value
+            pm25 = None
+            for i in range(len(pm25_values)-1, -1, -1):
+                if pm25_values[i] is not None:
+                    pm25 = pm25_values[i]
+                    break
+            
+            # Find the last non-null PM10 value
+            pm10 = None
+            for i in range(len(pm10_values)-1, -1, -1):
+                if pm10_values[i] is not None:
+                    pm10 = pm10_values[i]
+                    break
+            
+            # Use default if no valid data found
+            if pm25 is None:
+                pm25 = 25
+            if pm10 is None:
+                pm10 = 45
+            
+            # Calculate AQI based on PM2.5
             if pm25 <= 12:
                 aqi = 1
             elif pm25 <= 35.4:
@@ -141,15 +164,15 @@ def get_air_quality_data(lat, lon):
             
             return {
                 'aqi': aqi,
-                'pm25': hourly_data['pm2_5'][latest_index],
-                'pm10': hourly_data['pm10'][latest_index]
+                'pm25': pm25,
+                'pm10': pm10
             }
         else:
-            st.error("Air quality API error")
-            return None
+            st.error("Air quality API error - using default values")
+            return {'aqi': 2, 'pm25': 25, 'pm10': 45}
     except Exception as e:
-        st.error(f"Air quality API connection error: {e}")
-        return None
+        st.error(f"Air quality API connection error: {str(e)}")
+        return {'aqi': 2, 'pm25': 25, 'pm10': 45}
 
 # Title and description
 st.title("🏥 Real-Time Stroke Risk Predictor")
@@ -252,6 +275,8 @@ if st.button("🔍 Calculate Stroke Risk", type="primary", use_container_width=T
                         aqi_labels[aqi_value]
                     )
                     st.metric("PM2.5", f"{air_quality_data['pm25']:.1f} μg/m³")
+                else:
+                    st.metric("Air Quality", "Data unavailable")
         else:
             # Use default values if API fails
             weather_data = {'temperature': 28, 'humidity': 75, 'pressure': 1010}
@@ -392,8 +417,12 @@ if st.button("🔍 Calculate Stroke Risk", type="primary", use_container_width=T
             st.write(f"**Location:** {city}")
             st.write(f"**Temperature:** {weather_data['temperature']:.1f}°C")
             st.write(f"**Humidity:** {weather_data['humidity']}%")
-            st.write(f"**Air Quality:** {aqi_labels[air_quality_data['aqi']]}")
-            st.write(f"**PM2.5:** {air_quality_data['pm25']:.1f} μg/m³")
+            if air_quality_data:
+                aqi_labels = {1: "Good", 2: "Fair", 3: "Moderate", 4: "Poor", 5: "Very Poor"}
+                st.write(f"**Air Quality:** {aqi_labels.get(air_quality_data['aqi'], 'Unknown')}")
+                st.write(f"**PM2.5:** {air_quality_data['pm25']:.1f} μg/m³")
+            else:
+                st.write("**Air Quality:** Data unavailable")
 
 # Sidebar information
 st.sidebar.header("ℹ️ About This Predictor")
